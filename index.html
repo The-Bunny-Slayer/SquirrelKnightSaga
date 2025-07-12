@@ -14,6 +14,7 @@
     </style>
 </head>
 <body>
+    <div id="game"></div>
     <div id="ui">
         <div id="stats">Level: 1 | Acorns: 0 | Health: 100 | Attack: 10 | Speed: 100</div>
         <div id="message">Welcome, Squirrel Knight! Defeat enemies and collect acorns!</div>
@@ -23,11 +24,13 @@
         <p>Acorns: <span id="acornCount">0</span></p>
         <button onclick="upgradeStat('health')">Upgrade Health (+10, Cost: 5 Acorns)</button><br>
         <button onclick="upgradeStat('attack')">Upgrade Attack (+5, Cost: 5 Acorns)</button><br>
-        <button onclick="upgradeStat('speed')">Upgrade Speed (+10, Cost: 5 Acorns)</button><br>
+        <button onclick="upgradeStat('speed')">Upgrade Speed (+10, Cost:  Gabriella</button><br>
         <button onclick="startNextLevel()">Start Next Level</button>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script>
+        // Fallback if CDN fails
+        window.Phaser = window.Phaser || {};
         const config = {
             type: Phaser.AUTO,
             width: 800,
@@ -43,28 +46,36 @@
         const game = new Phaser.Game(config);
 
         function preload() {
-            // Using simple shapes instead of images for simplicity
-            this.textures.generate('squirrel', { data: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], width: 4, height: 4 });
-            this.textures.generate('enemy', { data: [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2], width: 4, height: 4 });
-            this.textures.generate('acorn', { data: [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3], width: 4, height: 4 });
+            try {
+                // Define colored textures
+                this.textures.generate('squirrel', { data: Array(16).fill(0xffffffff), width: 4, height: 4 }); // White
+                this.textures.generate('enemy', { data: Array(16).fill(0xff0000ff), width: 4, height: 4 }); // Red
+                this.textures.generate('acorn', { data: Array(16).fill(0xffff00ff), width: 4, height: 4 }); // Yellow
+            } catch (e) {
+                console.error('Preload error:', e);
+            }
         }
 
         function create() {
-            this.physics.world.setBounds(0, 0, 800, 600);
-            player = this.physics.add.sprite(400, 300, 'squirrel').setOrigin(0.5).setScale(2);
-            player.setCollideWorldBounds(true);
-            enemies = this.physics.add.group();
-            acorns = this.physics.add.group();
-            cursors = this.input.keyboard.createCursorKeys();
-            messageText = document.getElementById('message');
-            statsText = document.getElementById('stats');
-            spawnEnemies.call(this);
-            spawnAcorns.call(this);
+            try {
+                this.physics.world.setBounds(0, 0, 800, 600);
+                player = this.physics.add.sprite(400, 300, 'squirrel').setOrigin(0.5).setScale(2);
+                player.setCollideWorldBounds(true);
+                enemies = this.physics.add.group();
+                acorns = this.physics.add.group();
+                cursors = this.input.keyboard.createCursorKeys();
+                messageText = document.getElementById('message');
+                statsText = document.getElementById('stats');
+                spawnEnemies.call(this);
+                spawnAcorns.call(this);
+            } catch (e) {
+                console.error('Create error:', e);
+            }
         }
 
         function spawnEnemies() {
             enemies.clear(true, true);
-            const enemyCount = Math.min(level * 2, 10); // Cap at 10 enemies for performance
+            const enemyCount = Math.min(level * 2, 10);
             for (let i = 0; i < enemyCount; i++) {
                 const x = Phaser.Math.Between(50, 750);
                 const y = Phaser.Math.Between(50, 550);
@@ -72,7 +83,7 @@
                 enemy.setVelocity(Phaser.Math.Between(-50, 50), Phaser.Math.Between(-50, 50));
                 enemy.setCollideWorldBounds(true);
                 enemy.setBounce(1);
-                enemy.health = 20 + level * 5; // Enemies get tougher each level
+                enemy.health = 20 + level * 5;
                 enemies.add(enemy);
             }
         }
@@ -89,14 +100,12 @@
         function update() {
             if (gameState !== 'playing') return;
 
-            // Player movement
             player.setVelocity(0);
             if (cursors.left.isDown) player.setVelocityX(-playerStats.speed);
             if (cursors.right.isDown) player.setVelocityX(playerStats.speed);
             if (cursors.up.isDown) player.setVelocityY(-playerStats.speed);
             if (cursors.down.isDown) player.setVelocityY(playerStats.speed);
 
-            // Player-enemy collision
             this.physics.overlap(player, enemies, (player, enemy) => {
                 enemy.health -= playerStats.attack;
                 playerStats.health -= 10;
@@ -104,7 +113,7 @@
                 messageText.textContent = Phaser.Math.Between(0, 1) ? "Ouch! That badger's cranky!" : "Yow! Goblin's got a mean swing!";
                 if (enemy.health <= 0) {
                     enemy.destroy();
-                    acornCount += 1; // Bonus acorn for defeating an enemy
+                    acornCount += 1;
                     updateStats();
                 }
                 if (playerStats.health <= 0) {
@@ -119,7 +128,6 @@
                 }
             });
 
-            // Player-acorn collision
             this.physics.overlap(player, acorns, (player, acorn) => {
                 acorn.destroy();
                 acornCount += 1;
