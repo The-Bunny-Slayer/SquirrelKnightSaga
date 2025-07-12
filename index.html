@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squirrel Knight Saga</title>
+    <style>
+        body { margin: 0; background: #f0f0f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { border: 2px solid #333; }
+        #ui { position: absolute; top: 10px; left: 10px; font-family: Arial, sans-serif; color: #333; }
+        #upgradeMenu { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border: 2px solid #333; text-align: center; }
+        button { padding: 10px; margin: 5px; cursor: pointer; background: #8b4513; color: #fff; border: none; border-radius: 5px; }
+        button:hover { background: #a0522d; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="stats">Level: 1 | Acorns: 0 | Health: 100 | Attack: 10 | Speed: 100</div>
+        <div id="message">Welcome, Squirrel Knight! Defeat enemies and collect acorns!</div>
+    </div>
+    <div id="upgradeMenu">
+        <h2>Upgrade Time!</h2>
+        <p>Acorns: <span id="acornCount">0</span></p>
+        <button onclick="upgradeStat('health')">Upgrade Health (+10, Cost: 5 Acorns)</button><br>
+        <button onclick="upgradeStat('attack')">Upgrade Attack (+5, Cost: 5 Acorns)</button><br>
+        <button onclick="upgradeStat('speed')">Upgrade Speed (+10, Cost: 5 Acorns)</button><br>
+        <button onclick="startNextLevel()">Start Next Level</button>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game',
+            physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+            scene: { preload: preload, create: create, update: update }
+        };
+
+        let player, enemies, acorns, level = 1, acornCount = 0, playerStats = { health: 100, maxHealth: 100, attack: 10, speed: 100 };
+        let gameState = 'playing', cursors, messageText, statsText;
+
+        const game = new Phaser.Game(config);
+
+        function preload() {
+            // Using simple shapes instead of images for simplicity
+            this.textures.generate('squirrel', { data: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], width: 4, height: 4 });
+            this.textures.generate('enemy', { data: [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2], width: 4, height: 4 });
+            this.textures.generate('acorn', { data: [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3], width: 4, height: 4 });
+        }
+
+        function create() {
+            this.physics.world.setBounds(0, 0, 800, 600);
+            player = this.physics.add.sprite(400, 300, 'squirrel').setOrigin(0.5).setScale(2);
+            player.setCollideWorldBounds(true);
+            enemies = this.physics.add.group();
+            acorns = this.physics.add.group();
+            cursors = this.input.keyboard.createCursorKeys();
+            messageText = document.getElementById('message');
+            statsText = document.getElementById('stats');
+            spawnEnemies.call(this);
+            spawnAcorns.call(this);
+        }
+
+        function spawnEnemies() {
+            enemies.clear(true, true);
+            const enemyCount = Math.min(level * 2, 10); // Cap at 10 enemies for performance
+            for (let i = 0; i < enemyCount; i++) {
+                const x = Phaser.Math.Between(50, 750);
+                const y = Phaser.Math.Between(50, 550);
+                const enemy = this.physics.add.sprite(x, y, 'enemy').setScale(2);
+                enemy.setVelocity(Phaser.Math.Between(-50, 50), Phaser.Math.Between(-50, 50));
+                enemy.setCollideWorldBounds(true);
+                enemy.setBounce(1);
+                enemy.health = 20 + level * 5; // Enemies get tougher each level
+                enemies.add(enemy);
+            }
+        }
+
+        function spawnAcorns() {
+            acorns.clear(true, true);
+            for (let i = 0; i < 5; i++) {
+                const x = Phaser.Math.Between(50, 750);
+                const y = Phaser.Math.Between(50, 550);
+                acorns.create(x, y, 'acorn').setScale(1.5);
+            }
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+
+            // Player movement
+            player.setVelocity(0);
+            if (cursors.left.isDown) player.setVelocityX(-playerStats.speed);
+            if (cursors.right.isDown) player.setVelocityX(playerStats.speed);
+            if (cursors.up.isDown) player.setVelocityY(-playerStats.speed);
+            if (cursors.down.isDown) player.setVelocityY(playerStats.speed);
+
+            // Player-enemy collision
+            this.physics.overlap(player, enemies, (player, enemy) => {
+                enemy.health -= playerStats.attack;
+                playerStats.health -= 10;
+                updateStats();
+                messageText.textContent = Phaser.Math.Between(0, 1) ? "Ouch! That badger's cranky!" : "Yow! Goblin's got a mean swing!";
+                if (enemy.health <= 0) {
+                    enemy.destroy();
+                    acornCount += 1; // Bonus acorn for defeating an enemy
+                    updateStats();
+                }
+                if (playerStats.health <= 0) {
+                    gameState = 'gameover';
+                    messageText.textContent = "Game Over! The Squirrel Knight has fallen! Refresh to try again.";
+                    player.setActive(false).setVisible(false);
+                } else if (enemies.countActive(true) === 0) {
+                    gameState = 'upgrade';
+                    document.getElementById('upgradeMenu').style.display = 'block';
+                    document.getElementById('acornCount').textContent = acornCount;
+                    messageText.textContent = "Level cleared! Time to spend those acorns!";
+                }
+            });
+
+            // Player-acorn collision
+            this.physics.overlap(player, acorns, (player, acorn) => {
+                acorn.destroy();
+                acornCount += 1;
+                updateStats();
+                messageText.textContent = "Yum! Another acorn for the stash!";
+            });
+        }
+
+        function updateStats() {
+            statsText.textContent = `Level: ${level} | Acorns: ${acornCount} | Health: ${playerStats.health} | Attack: ${playerStats.attack} | Speed: ${playerStats.speed}`;
+        }
+
+        function upgradeStat(stat) {
+            if (acornCount < 5) {
+                messageText.textContent = "Not enough acorns, brave squirrel!";
+                return;
+            }
+            acornCount -= 5;
+            if (stat === 'health') {
+                playerStats.maxHealth += 10;
+                playerStats.health = playerStats.maxHealth;
+            } else if (stat === 'attack') {
+                playerStats.attack += 5;
+            } else if (stat === 'speed') {
+                playerStats.speed += 10;
+            }
+            document.getElementById('acornCount').textContent = acornCount;
+            updateStats();
+            messageText.textContent = `Upgraded ${stat}! Feeling stronger already!`;
+        }
+
+        function startNextLevel() {
+            level += 1;
+            playerStats.health = playerStats.maxHealth;
+            gameState = 'playing';
+            document.getElementById('upgradeMenu').style.display = 'none';
+            player.setPosition(400, 300);
+            updateStats();
+            messageText.textContent = `Level ${level}! Here come more foes!`;
+            spawnEnemies.call(game.scene.scenes[0]);
+            spawnAcorns.call(game.scene.scenes[0]);
+        }
+    </script>
+</body>
+</html>
